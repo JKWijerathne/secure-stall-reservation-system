@@ -26,6 +26,9 @@ public class User {
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
+    @Column(name = "auth0_sub", unique = true, length = 255)
+    private String auth0Sub;
+
     @Column(name = "contact_number", length = 20)
     private String contactNumber;
 

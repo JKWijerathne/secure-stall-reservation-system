@@ -1,5 +1,7 @@
 import { useNavigate } from "react-router-dom";
+import { useAuth0 } from "@auth0/auth0-react";
 import AuthService from "../../services/auth.service";
+import UserService from "../../services/user.service";
 import { useEffect, useState } from "react";
 import {
   MapIcon,
@@ -13,19 +15,46 @@ import {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(AuthService.getCurrentUser());
+  const { user: auth0User, isAuthenticated: isAuth0Authenticated, isLoading: isAuth0Loading } = useAuth0();
+  const [localUser, setLocalUser] = useState(AuthService.getCurrentUser());
+
+  const isLoggedIn = isAuth0Authenticated || !!localUser;
 
   useEffect(() => {
-    if (!user) {
+    if (!isAuth0Loading && !isLoggedIn) {
       navigate("/login");
+      return;
     }
-  }, [user, navigate]);
 
-  if (!user) return (
+    if (!isAuth0Loading && isAuth0Authenticated && auth0User) {
+      const checkProfile = async () => {
+        try {
+          const response = await UserService.getMe({
+            auth0Sub: auth0User.sub,
+            email: auth0User.email,
+          });
+
+          const profile = response?.data || {};
+          const missingProfile = !profile.contactNumber || !profile.contactNumber.trim() || !profile.businessName || !profile.businessName.trim();
+
+          if (missingProfile) {
+            navigate("/complete-profile", { replace: true });
+          }
+        } catch (error) {
+          console.warn("Dashboard Google profile check failed:", error);
+        }
+      };
+
+      checkProfile();
+    }
+  }, [isLoggedIn, isAuth0Loading, isAuth0Authenticated, auth0User, navigate]);
+
+  if (isAuth0Loading || !isLoggedIn) return (
     <div className="flex h-screen w-screen items-center justify-center bg-slate-50">
       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
     </div>
   );
+
 
   return (
     <div className="min-h-screen bg-slate-50">

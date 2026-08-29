@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth0 } from "@auth0/auth0-react";
 import AuthService from "../../services/auth.service";
 import {
   UserCircleIcon,
@@ -16,17 +17,31 @@ import {
 const Header = ({ user }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user: auth0User, isAuthenticated, logout } = useAuth0();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  const activeUser = auth0User || user;
+  const displayName = activeUser?.name || activeUser?.email || "User";
+  const userInitial = displayName.charAt(0).toUpperCase();
+
   const handleLogout = () => {
     AuthService.logout();
-    navigate("/login");
+    if (isAuthenticated) {
+      logout({
+        logoutParams: {
+          returnTo: window.location.origin,
+        },
+      });
+    } else {
+      navigate("/login");
+    }
   };
 
   const handleReservationsClick = () => {
     navigate("/reservations");
   };
+
 
   return (
     <nav className="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 sm:px-8 py-3">
@@ -86,11 +101,19 @@ const Header = ({ user }) => {
           <div className="relative">
             <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-2 p-1 hover:bg-slate-100 rounded-full transition"
+              className="flex items-center gap-2 p-1 hover:bg-slate-100 rounded-full transition cursor-pointer"
             >
-              <div className="w-9 h-9 bg-blue-800 rounded-full flex items-center justify-center text-white font-bold">
-                {(user?.name || user?.email)?.charAt(0).toUpperCase() || "U"}
-              </div>
+              {activeUser?.picture ? (
+                <img
+                  src={activeUser.picture}
+                  alt={displayName}
+                  className="w-9 h-9 rounded-full object-cover ring-2 ring-blue-800"
+                />
+              ) : (
+                <div className="w-9 h-9 bg-blue-800 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  {userInitial}
+                </div>
+              )}
             </button>
 
             {isProfileOpen && (
