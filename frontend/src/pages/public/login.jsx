@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useAuth0 } from "@auth0/auth0-react";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import AuthService from "../../services/auth.service";
+import UserService from "../../services/user.service";
+import LoginButton from "../../components/LoginButton";
 import backgroundImg from "../../assets/background.jpg";
 
 const Login = () => {
@@ -11,6 +14,54 @@ const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { user: auth0User, isAuthenticated: isAuth0Authenticated, isLoading: isAuth0Loading } = useAuth0();
+
+  useEffect(() => {
+    if (!isAuth0Loading && isAuth0Authenticated && auth0User) {
+      const ensureGoogleProfile = async () => {
+        try {
+          let response;
+
+          try {
+            response = await UserService.getMe({
+              auth0Sub: auth0User.sub,
+              email: auth0User.email,
+            });
+          } catch (lookupError) {
+            response = await UserService.completeGoogleProfile({
+              auth0Sub: auth0User.sub,
+              email: auth0User.email,
+              name: auth0User.name,
+            });
+          }
+
+          const profile = response?.data || {};
+          const isProfileMissing = !profile.contactNumber || !profile.contactNumber.trim() || !profile.businessName || !profile.businessName.trim();
+
+          if (isProfileMissing) {
+            navigate("/complete-profile", { replace: true });
+            return;
+          }
+        } catch (error) {
+          console.error("Google profile sync failed:", error);
+        }
+
+        navigate("/dashboard", { replace: true });
+      };
+
+      ensureGoogleProfile();
+    }
+  }, [isAuth0Authenticated, isAuth0Loading, auth0User, navigate]);
+
+
+  if (isAuth0Loading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -36,6 +87,7 @@ const Login = () => {
       setLoading(false);
     }
   };
+
 
   return (
     <div
@@ -148,8 +200,18 @@ const Login = () => {
               </span>
             </div>
 
+            {/* Auth0 OIDC SSO Login */}
+            <div className="pt-2">
+              <LoginButton className="w-full flex items-center justify-center gap-3 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg transition shadow-md shadow-slate-300 cursor-pointer text-sm">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M21.98 7.348L19.065.73A1.947 1.947 0 0 0 17.29 0H6.71c-.767 0-1.465.45-1.776 1.144L2.02 7.348a6.386 6.386 0 0 0 2.27 7.428l7.07 5.093c.38.273.89.273 1.27 0l7.07-5.093a6.385 6.385 0 0 0 2.28-7.428zM12 18.064l-5.69-4.1a4.394 4.394 0 0 1-1.566-5.116L6.5 4.75h11l1.756 4.098a4.394 4.394 0 0 1-1.566 5.116L12 18.064z"/>
+                </svg>
+                <span>Continue with Auth0 (SSO)</span>
+              </LoginButton>
+            </div>
+
             {/* Signup Link Section */}
-            <div className="text-center pt-4">
+            <div className="text-center pt-2">
               <p className="text-sm text-gray-600">
                 Don't have an account?{" "}
                 <Link
@@ -160,6 +222,7 @@ const Login = () => {
                 </Link>
               </p>
             </div>
+
 
           </div>
         </div>

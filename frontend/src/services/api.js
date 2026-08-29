@@ -28,15 +28,13 @@ api.interceptors.response.use(
     },
     (error) => {
         if (error.response && error.response.status === 401) {
-            console.warn("Session expired. Logging out.");
-
+            console.warn("Unauthorized API call (401).");
             localStorage.removeItem("user");
             localStorage.removeItem("token");
-
-            window.location.href = "/login";
         }
         return Promise.reject(error);
     }
 );
+
 
 export default api;

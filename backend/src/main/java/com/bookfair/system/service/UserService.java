@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -52,6 +53,82 @@ public class UserService {
     User user = userRepository.findByEmail(email)
         .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
     return toProfileResponse(user);
+  }
+
+  @Transactional(readOnly = true)
+  public UserProfileResponse getUserProfileBySubOrEmail(String auth0Sub, String email) {
+    if (auth0Sub != null && !auth0Sub.isBlank()) {
+      return userRepository.findByAuth0Sub(auth0Sub)
+          .map(this::toProfileResponse)
+          .orElseGet(() -> {
+            if (email != null && !email.isBlank()) {
+              return userRepository.findByEmailIgnoreCase(email)
+                  .map(this::toProfileResponse)
+                  .orElseThrow(() -> new UsernameNotFoundException("User not found: " + auth0Sub));
+            }
+            throw new UsernameNotFoundException("User not found: " + auth0Sub);
+          });
+    }
+
+    if (email != null && !email.isBlank()) {
+      User user = userRepository.findByEmailIgnoreCase(email)
+          .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
+      return toProfileResponse(user);
+    }
+
+    throw new IllegalArgumentException("Either auth0Sub or email is required");
+  }
+
+  @Transactional
+  public UserProfileResponse completeGoogleProfile(String auth0Sub, String email, String name,
+      String contactNumber, String businessName) {
+    String normalizedSub = auth0Sub == null ? null : auth0Sub.trim();
+    String normalizedEmail = email == null ? null : email.trim();
+    String normalizedName = (name == null || name.isBlank())
+        ? (normalizedEmail != null && normalizedEmail.contains("@") ? normalizedEmail.substring(0, normalizedEmail.indexOf('@')) : "Vendor")
+        : name.trim();
+
+    User user = null;
+    if (normalizedSub != null && !normalizedSub.isBlank()) {
+      user = userRepository.findByAuth0Sub(normalizedSub).orElse(null);
+    }
+    if (user == null && normalizedEmail != null && !normalizedEmail.isBlank()) {
+      user = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+    }
+
+    if (user == null) {
+      user = new User();
+      user.setRole("VENDOR");
+      user.setPassword(passwordEncoder.encode("AUTH0_GOOGLE_" + UUID.randomUUID()));
+      user.setEnabled(true);
+    }
+
+    if (normalizedSub != null && !normalizedSub.isBlank()) {
+      user.setAuth0Sub(normalizedSub);
+    }
+    if (normalizedEmail != null && !normalizedEmail.isBlank()) {
+      user.setEmail(normalizedEmail);
+    }
+    if (normalizedName != null && !normalizedName.isBlank()) {
+      user.setName(normalizedName);
+    }
+    if (user.getRole() == null || user.getRole().isBlank()) {
+      user.setRole("VENDOR");
+    }
+    if (user.getPassword() == null || user.getPassword().isBlank()) {
+      user.setPassword(passwordEncoder.encode("AUTH0_GOOGLE_" + UUID.randomUUID()));
+    }
+    if (user.getEnabled() == null) {
+      user.setEnabled(true);
+    }
+    if (contactNumber != null && !contactNumber.isBlank()) {
+      user.setContactNumber(contactNumber.trim());
+    }
+    if (businessName != null && !businessName.isBlank()) {
+      user.setBusinessName(businessName.trim());
+    }
+
+    return toProfileResponse(userRepository.save(user));
   }
 
   @Transactional

@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, Outlet } from "react-router-dom";
 import Login from "./pages/public/login";
 import Register from "./pages/public/Register";
+import CompleteGoogleProfile from "./pages/public/CompleteGoogleProfile";
 import Dashboard from "./pages/user/Dashboard";
 import Map from "./pages/user/Map";
 import Footer from "./components/common/footer";
@@ -29,8 +30,10 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminProtectedRoute from "./components/routing/AdminProtectedRoute.jsx";
 import EmployeeHeader from "./components/common/EmployeeHeader";
 import { useEffect, useState } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 
 function AppContent() {
+  const { isLoading: isAuth0Loading, user: auth0User, isAuthenticated: isAuth0Authenticated } = useAuth0();
   const [user, setUser] = useState(undefined);
 
   useEffect(() => {
@@ -45,6 +48,19 @@ function AppContent() {
     return () => window.removeEventListener("user-updated", fetchUser);
   }, []);
 
+  if (isAuth0Loading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-800"></div>
+          <p className="text-sm font-semibold text-slate-500">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const effectiveUser = isAuth0Authenticated ? auth0User : user;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <Routes>
@@ -52,9 +68,11 @@ function AppContent() {
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/complete-profile" element={<CompleteGoogleProfile />} />
 
         {/* ── Main Layout routes (User/Public with Header & Footer) ── */}
-        <Route element={<MainLayout user={user} />}>
+        <Route element={<MainLayout user={effectiveUser} />}>
+
           <Route path="/about" element={<About />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/reservations" element={<Reservations />} />

@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 import UserService from "../../services/user.service";
+import UserProfile from "../../components/UserProfile";
 import { UserCircleIcon, BriefcaseIcon, EnvelopeIcon, PhoneIcon, ShieldCheckIcon, PencilSquareIcon, CheckIcon, XMarkIcon, KeyIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 
 const Profile = () => {
+  const { isAuthenticated: isAuth0Authenticated, isLoading: isAuth0Loading } = useAuth0();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -32,8 +35,27 @@ const Profile = () => {
   });
 
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    if (!isAuth0Authenticated && !isAuth0Loading) {
+      fetchProfile();
+    }
+  }, [isAuth0Authenticated, isAuth0Loading]);
+
+  if (isAuth0Loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-800"></div>
+      </div>
+    );
+  }
+
+  if (isAuth0Authenticated) {
+    return (
+      <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+        <UserProfile />
+      </div>
+    );
+  }
+
 
   const fetchProfile = () => {
     UserService.getProfile()
