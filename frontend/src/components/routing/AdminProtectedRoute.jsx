@@ -1,14 +1,19 @@
 import { Navigate, Outlet } from "react-router-dom";
+import { useAuth0 } from "@auth0/auth0-react";
 
 export default function AdminProtectedRoute() {
-    const token = localStorage.getItem("token");
-    const userStr = localStorage.getItem("user");
-    let user = null;
-    try { user = userStr ? JSON.parse(userStr) : null; } catch (e) { }
+    const { isAuthenticated, isLoading, user } = useAuth0();
 
-    const role = user?.roles ? user.roles[0] : null;
+    if (isLoading) {
+        return null;
+    }
 
-    if (!token || !user || role !== "ROLE_ADMIN") {
+    const roles = user?.['https://stallreservation.com/roles'] || user?.roles || [];
+    const hasAdminRole = Array.isArray(roles)
+        ? roles.some((role) => String(role).toUpperCase() === "ROLE_ADMIN" || String(role).toUpperCase() === "ADMIN")
+        : String(roles).toUpperCase() === "ROLE_ADMIN" || String(roles).toUpperCase() === "ADMIN";
+
+    if (!isAuthenticated || !hasAdminRole) {
         return <Navigate to="/login" replace />;
     }
     return <Outlet />;

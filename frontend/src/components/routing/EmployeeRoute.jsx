@@ -1,21 +1,19 @@
 import { Navigate } from "react-router-dom";
-
+import { useAuth0 } from "@auth0/auth0-react";
 
 const EmployeeRoute = ({ children }) => {
-    const userStr = localStorage.getItem("user");
+    const { isAuthenticated, isLoading, user } = useAuth0();
 
-    if (!userStr) {
-        return <Navigate to="/login" replace />;
+    if (isLoading) {
+        return null;
     }
 
-    try {
-        const user = JSON.parse(userStr);
-        const roles = Array.isArray(user.roles) ? user.roles : [];
-        if (!roles.includes("ROLE_EMPLOYEE")) {
-            // eslint-disable-next-line react-hooks/error-boundaries
-            return <Navigate to="/login" replace />;
-        }
-    } catch {
+    const roles = user?.['https://stallreservation.com/roles'] || user?.roles || [];
+    const hasEmployeeRole = Array.isArray(roles)
+        ? roles.some((role) => String(role).toUpperCase() === "ROLE_EMPLOYEE" || String(role).toUpperCase() === "EMPLOYEE")
+        : String(roles).toUpperCase() === "ROLE_EMPLOYEE" || String(roles).toUpperCase() === "EMPLOYEE";
+
+    if (!isAuthenticated || !hasEmployeeRole) {
         return <Navigate to="/login" replace />;
     }
 

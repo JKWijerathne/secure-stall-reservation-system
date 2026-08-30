@@ -57,6 +57,12 @@ lerna-debug.log*
 *.local
 .env
 .env.*
+keystore.p12
+**/keystore.p12
+**/node_modules/
+**/dist/
+**/target/
+**/build/
 
 # =========================
 # Optional

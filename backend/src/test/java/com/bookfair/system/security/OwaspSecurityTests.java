@@ -75,9 +75,9 @@ class OwaspSecurityTests {
 
     @Test
     void invalidInputRejected_returns400() throws Exception {
-        String payload = "{\"name\":\"\",\"email\":\"not-an-email\",\"password\":\"1\",\"contactNumber\":\"abc\"}";
+        String payload = "{\"auth0Sub\":\"\",\"email\":\"not-an-email\",\"name\":\"\",\"contactNumber\":\"\",\"businessName\":\"\"}";
 
-        mockMvc.perform(post("/api/auth/signup")
+        mockMvc.perform(post("/api/user/me/google")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isBadRequest());
