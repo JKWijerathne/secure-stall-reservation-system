@@ -26,6 +26,7 @@ This directory contains the database schema and seed data for the **Book Fair Sy
   - Stall types (SMALL, MEDIUM, LARGE) with corresponding pricing
   - Dozens of stalls mapped to their respective floors and types
   - Pre-defined book genres
+- **`migration_add_auth0_sub.sql`**: Adds Auth0 subject persistence to an existing database.
 
 ## ⚙️ Setup Instructions
 
@@ -49,3 +50,9 @@ This directory contains the database schema and seed data for the **Book Fair Sy
    spring.datasource.username=postgres
    spring.datasource.password=your_password_here
    ```
+
+If the database was created before Google profile completion was added, run this once before restarting the backend:
+
+```bash
+psql -U postgres -d bookfair_db -f migration_add_auth0_sub.sql
+```

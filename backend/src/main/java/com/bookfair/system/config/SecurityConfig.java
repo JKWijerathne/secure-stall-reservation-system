@@ -1,9 +1,11 @@
 package com.bookfair.system.config;
 
+import com.bookfair.system.security.AudienceValidator;
 import com.bookfair.system.security.jwt.AuthEntryPointJwt;
 import com.bookfair.system.security.jwt.AuthTokenFilter;
 import com.bookfair.system.security.services.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -15,6 +17,16 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -22,23 +34,28 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
-    // abcd efgh
+
     private final UserDetailsServiceImpl userDetailsService;
     private final AuthEntryPointJwt unauthorizedHandler;
     private final AuthTokenFilter authTokenFilter;
+    private final AudienceValidator audienceValidator;
 
+    @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
+    private String issuerUri;
+
+  
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
-
         authProvider.setPasswordEncoder(passwordEncoder());
-
         return authProvider;
     }
 
@@ -52,20 +69,87 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+   
+    @Bean
+    public JwtDecoder jwtDecoder() {
+        NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder
+                .withJwkSetUri(issuerUri + ".well-known/jwks.json")
+                .build();
+
+        // Combine the default issuer validator with our custom audience validator
+        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
+        OAuth2TokenValidator<Jwt> withAudience = new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator);
+        jwtDecoder.setJwtValidator(withAudience);
+
+        return jwtDecoder;
+    }
+
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter scopeConverter = new JwtGrantedAuthoritiesConverter();
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            Collection<GrantedAuthority> authorities = new ArrayList<>(scopeConverter.convert(jwt));
+            List<String> roles = jwt.getClaimAsStringList("https://stallreservation.com/roles");
+            if (roles == null) {
+                roles = jwt.getClaimAsStringList("roles");
+            }
+
+            if (roles != null) {
+                for (String role : roles) {
+                    String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role.toUpperCase();
+                    authorities.add(new SimpleGrantedAuthority(authority));
+                }
+            }
+            return authorities;
+        });
+
+        return converter;
+    }
+
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+             
                 .csrf(AbstractHttpConfigurer::disable)
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/stalls/**").permitAll()
-                        .requestMatchers("/api/employee/**").hasRole("EMPLOYEE")
-                        .anyRequest().authenticated());
 
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+                // Use Auth0 OAuth2 Resource Server JWT validation for protected routes
+                .oauth2ResourceServer(oauth2 -> oauth2
+                    .jwt(jwt -> jwt
+                        .decoder(jwtDecoder())
+                        .jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                        .authenticationEntryPoint(unauthorizedHandler)
+                )
+
+                // Stateless sessions — no HttpSession
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // Authorization rules
+                .authorizeHttpRequests(auth -> auth
+                        // Public — legacy login/register and any explicitly public endpoints
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/public/**").permitAll()
+                        
+                        .requestMatchers(org.springframework.http.HttpMethod.GET,  "/api/user/me").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/user/me/google").permitAll()
+                        // Protected — require a valid Auth0 Bearer token
+                        .requestMatchers("/api/vendor-publishers/**").hasAnyRole("VENDOR", "ORGANIZER")
+                        .requestMatchers("/api/stalls/**").authenticated()
+                        .requestMatchers("/api/users/**").authenticated()
+                        // Role-restricted
+                        .requestMatchers("/api/employee/**").hasRole("EMPLOYEE")
+                        // Everything else also requires authentication
+                        .anyRequest().authenticated()
+                );
+
+        // Keep the legacy DaoAuthenticationProvider for /api/auth/** login flows
         http.authenticationProvider(authenticationProvider());
+
+       
         http.addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -84,36 +168,3 @@ public class SecurityConfig {
         return source;
     }
 }
-
-// package com.bookfair.system.config;
-
-// import org.springframework.context.annotation.Bean;
-// import org.springframework.context.annotation.Configuration;
-// import
-// org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-// import
-// org.springframework.security.config.annotation.web.builders.HttpSecurity;
-// import org.springframework.security.web.SecurityFilterChain;
-
-// @Configuration
-// @EnableMethodSecurity
-// public class SecurityConfig {
-
-// @Bean
-// public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-
-// http.csrf(csrf -> csrf.disable());
-
-// http.authorizeHttpRequests(auth -> auth
-// .requestMatchers("/auth/**").permitAll()
-// .requestMatchers("/admin/**").hasAnyRole("ADMIN", "EMPLOYEE")
-// .anyRequest().authenticated()
-// );
-
-// // ✅ If you already have a JwtFilter, add it here:
-// // http.addFilterBefore(jwtFilter,
-// UsernamePasswordAuthenticationFilter.class);
-
-// return http.build();
-// }
-// }

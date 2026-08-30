@@ -21,11 +21,11 @@ public class UserController {
       Principal principal,
       @RequestParam(required = false) String auth0Sub,
       @RequestParam(required = false) String email) {
-    if (principal != null) {
-      return ResponseEntity.ok(userService.getUserProfile(principal.getName()));
-    }
     if ((auth0Sub != null && !auth0Sub.isBlank()) || (email != null && !email.isBlank())) {
       return ResponseEntity.ok(userService.getUserProfileBySubOrEmail(auth0Sub, email));
+    }
+    if (principal != null) {
+      return ResponseEntity.ok(userService.getUserProfile(principal.getName()));
     }
     return ResponseEntity.badRequest().build();
   }

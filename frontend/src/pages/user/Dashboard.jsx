@@ -41,7 +41,12 @@ const Dashboard = () => {
             navigate("/complete-profile", { replace: true });
           }
         } catch (error) {
-          console.warn("Dashboard Google profile check failed:", error);
+
+          if (error?.response?.status === 404) {
+            navigate("/complete-profile", { replace: true });
+          } else {
+            console.warn("Dashboard Google profile check failed:", error);
+          }
         }
       };
 
