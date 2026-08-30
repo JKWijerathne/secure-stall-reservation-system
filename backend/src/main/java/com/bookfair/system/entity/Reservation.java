@@ -32,6 +32,9 @@ public class Reservation {
     @Column(name = "qr_code_token", unique = true, nullable = false)
     private String qrCodeToken;
 
+    @Column(name = "auth0_sub", nullable = false, length = 255)
+    private String auth0Sub;
+
     @Column(nullable = false)
     @Builder.Default
     private String status = "PENDING";

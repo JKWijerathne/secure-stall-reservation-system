@@ -5,19 +5,19 @@ const getAllStalls = () => {
 };
 
 const reserveStalls = (stallIds) => {
-  return api.post("/vendor-publishers/reservations", { stallIds });
+  return api.post("/reservations", { stallIds });
 };
 
 const getReservationCount = () => {
-  return api.get("/vendor-publishers/reservations/count");
+  return api.get("/reservations/count");
 };
 
 const getMyReservations = () => {
-  return api.get("/vendor-publishers/reservations/my");
+  return api.get("/reservations/my");
 };
 
 const cancelReservation = (stallId) => {
-  return api.delete(`/vendor-publishers/reservations/${stallId}`);
+  return api.delete(`/reservations/${stallId}`);
 };
 
 const StallService = {

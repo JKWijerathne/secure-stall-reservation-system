@@ -138,6 +138,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/user/me/google").permitAll()
                         // Protected — require a valid Auth0 Bearer token
                         .requestMatchers("/api/vendor-publishers/**").hasAnyRole("VENDOR", "ORGANIZER")
+                        .requestMatchers("/api/reservations/**").hasAnyRole("VENDOR", "ORGANIZER")
                         .requestMatchers("/api/stalls/**").authenticated()
                         .requestMatchers("/api/users/**").authenticated()
                         // Role-restricted

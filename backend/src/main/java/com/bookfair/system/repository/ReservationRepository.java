@@ -14,6 +14,11 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     List<Reservation> findByUserId(Long userId);
 
+    List<Reservation> findByAuth0Sub(String auth0Sub);
+
+    @Query("SELECT r FROM Reservation r JOIN FETCH r.user WHERE r.auth0Sub = :auth0Sub ORDER BY r.reservationDate DESC")
+    List<Reservation> findByAuth0SubWithUser(@Param("auth0Sub") String auth0Sub);
+
     long countByUserId(Long userId);
 
     /**

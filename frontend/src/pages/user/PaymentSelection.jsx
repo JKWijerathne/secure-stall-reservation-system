@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import axios from "axios";
-import AuthService from "../../services/auth.service";
+import StallService from "../../services/stall.service";
 import { CreditCardIcon, BanknotesIcon, LockClosedIcon, ArrowPathIcon, ChevronLeftIcon } from "@heroicons/react/24/outline";
 import ConfirmationModal from "../../components/common/ConfirmationModal";
 
@@ -25,16 +24,13 @@ const PaymentSelection = () => {
   const handlePay = async () => {
     setLoading(true);
     try {
-      const user = AuthService.getCurrentUser();
       const payload = {
         stallIds: stalls.map(s => s.id),
         paymentMethod: "CASH_ON_DATE",
         totalAmount: stalls.reduce((sum, s) => sum + s.price, 0)
       };
 
-      const res = await axios.post("http://localhost:8080/api/vendor-publishers/reservations", payload, {
-        headers: { Authorization: `Bearer ${user.token}` }
-      });
+      const res = await StallService.reserveStalls(payload.stallIds);
 
       navigate("/booking-confirmation", {
         state: {

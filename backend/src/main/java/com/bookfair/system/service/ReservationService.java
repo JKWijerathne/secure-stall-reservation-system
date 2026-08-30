@@ -31,11 +31,33 @@ public class ReservationService {
     private final EmailService emailService;
 
     @Transactional
-    public ReservationResponse createReservation(Long userId, ReservationRequest request) {
+    public ReservationResponse createReservation(String auth0Sub, ReservationRequest request) {
+        String jwtSubject = auth0Sub == null ? null : auth0Sub.trim();
+        if (jwtSubject == null || jwtSubject.isBlank()) {
+            throw new RuntimeException("Authenticated user subject is missing");
+        }
 
+        User user = userRepository.findByAuth0Sub(jwtSubject)
+                .orElseThrow(() -> new RuntimeException("User not found for Auth0 subject: " + jwtSubject));
+
+        return createReservation(user.getId(), user.getAuth0Sub(), request);
+    }
+
+    @Transactional
+    public ReservationResponse createReservation(Long userId, ReservationRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return createReservation(userId, user.getAuth0Sub(), request);
+    }
+
+    private ReservationResponse createReservation(Long userId, String auth0Sub, ReservationRequest request) {
         // 1. Validate User
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (auth0Sub == null || auth0Sub.isBlank()) {
+            auth0Sub = user.getAuth0Sub();
+        }
 
         // 2. Validate Limit (Max 3 stalls)
         long currentBookings = reservationStallRepository.countStallsByUserId(userId);
@@ -57,6 +79,7 @@ public class ReservationService {
 
         Reservation reservation = Reservation.builder()
                 .user(user)
+                .auth0Sub(auth0Sub)
                 .status(reservationStatus)
                 .qrCodeToken(qrToken)
                 .build();
@@ -182,6 +205,58 @@ public class ReservationService {
     }
 
     @Transactional(readOnly = true)
+    public List<Reservation> findReservationsByAuth0Sub(String auth0Sub) {
+        return reservationRepository.findByAuth0Sub(auth0Sub);
+    }
+
+    @Transactional
+    public void cancelStallReservationByAuth0Sub(String auth0Sub, Long stallId) {
+        User user = userRepository.findByAuth0Sub(auth0Sub)
+                .orElseThrow(() -> new RuntimeException("User not found for Auth0 subject: " + auth0Sub));
+        cancelStallReservation(user.getId(), stallId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReservationResponse> getMyReservations(String auth0Sub) {
+        String jwtSubject = auth0Sub == null ? null : auth0Sub.trim();
+        if (jwtSubject == null || jwtSubject.isBlank()) {
+            throw new RuntimeException("Authenticated user subject is missing");
+        }
+
+        List<Reservation> reservations = reservationRepository.findByAuth0SubWithUser(jwtSubject);
+        return reservations.stream()
+                .flatMap(reservation -> {
+                    List<ReservationStall> reservationStalls = reservationStallRepository.findAllByReservationId(reservation.getId());
+                    return reservationStalls.stream().map(rs -> {
+                        Stall stall = rs.getStall();
+                        String code = reservation.getQrCodeToken();
+                        if (code.contains("-C-")) {
+                            code = code.substring(0, code.indexOf("-C-"));
+                        }
+
+                        String qrCodeImage = null;
+                        try {
+                            qrCodeImage = generateQRCodeImage(code);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                        return ReservationResponse.builder()
+                                .id(stall.getId())
+                                .stallCode(stall.getStallCode())
+                                .size(stall.getSize())
+                                .price(stall.getPrice())
+                                .floorName(stall.getFloor().getFloorName())
+                                .reservationCode(code)
+                                .qrCodeImage(qrCodeImage)
+                                .status(reservation.getStatus())
+                                .build();
+                    });
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public List<ReservationResponse> getUserReservations(Long userId) {
         List<ReservationStall> reservationStalls = reservationStallRepository.findAllByReservationUserId(userId);
 
@@ -232,6 +307,7 @@ public class ReservationService {
         } else {
             Reservation cancelledRes = new Reservation();
             cancelledRes.setUser(originalReservation.getUser());
+            cancelledRes.setAuth0Sub(originalReservation.getAuth0Sub());
             cancelledRes.setReservationDate(originalReservation.getReservationDate());
             cancelledRes.setStatus("CANCELLED");
             cancelledRes.setQrCodeToken(originalReservation.getQrCodeToken() + "-C-" + stall.getId());
