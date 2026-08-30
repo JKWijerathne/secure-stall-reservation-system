@@ -6,6 +6,7 @@ import com.bookfair.system.dto.response.ReservationResponse;
 import com.bookfair.system.service.ReservationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping({"/api/reservations", "/api/vendor-publishers/reservations"})
 @RequiredArgsConstructor
@@ -28,6 +30,7 @@ public class ReservationController {
             @Valid @RequestBody ReservationRequest request) {
         try {
             String auth0Sub = jwt.getSubject();
+            log.info("security.role_action action=createReservation subject={} role=VENDOR", auth0Sub);
             ReservationResponse response = reservationService.createReservation(auth0Sub, request);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {

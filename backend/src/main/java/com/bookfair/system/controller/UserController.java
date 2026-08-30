@@ -1,13 +1,15 @@
 package com.bookfair.system.controller;
 
 import com.bookfair.system.dto.UserProfileResponse;
+import com.bookfair.system.dto.request.GoogleProfileRequest;
+import com.bookfair.system.dto.request.UserProfileUpdateRequest;
 import com.bookfair.system.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
-
-import java.security.Principal;
 
 @RestController
 @RequestMapping("/api/user")
@@ -17,29 +19,24 @@ public class UserController {
   private final UserService userService;
 
   @GetMapping("/me")
-  public ResponseEntity<UserProfileResponse> getCurrentUser(
-      Principal principal,
-      @RequestParam(required = false) String auth0Sub,
-      @RequestParam(required = false) String email) {
-    if ((auth0Sub != null && !auth0Sub.isBlank()) || (email != null && !email.isBlank())) {
-      return ResponseEntity.ok(userService.getUserProfileBySubOrEmail(auth0Sub, email));
+  public ResponseEntity<UserProfileResponse> getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
+    if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
+      return ResponseEntity.badRequest().build();
     }
-    if (principal != null) {
-      return ResponseEntity.ok(userService.getUserProfile(principal.getName()));
-    }
-    return ResponseEntity.badRequest().build();
+    return ResponseEntity.ok(userService.getUserProfileBySubOrEmail(jwt.getSubject(), null));
   }
 
   @GetMapping("/profile")
-  public ResponseEntity<UserProfileResponse> getUserProfile(Principal principal) {
-    String email = principal.getName();
-    UserProfileResponse userProfile = userService.getUserProfile(email);
-    return ResponseEntity.ok(userProfile);
+  public ResponseEntity<UserProfileResponse> getUserProfile(@AuthenticationPrincipal Jwt jwt) {
+    if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
+      return ResponseEntity.badRequest().build();
+    }
+    return ResponseEntity.ok(userService.getUserProfileBySubOrEmail(jwt.getSubject(), null));
   }
 
   @PostMapping("/me/google")
   public ResponseEntity<UserProfileResponse> completeGoogleProfile(
-      @RequestBody com.bookfair.system.dto.request.GoogleProfileRequest request) {
+      @Valid @RequestBody GoogleProfileRequest request) {
     if (request == null || (request.getEmail() == null && request.getAuth0Sub() == null)) {
       return ResponseEntity.badRequest().build();
     }
@@ -50,17 +47,25 @@ public class UserController {
   }
 
   @PutMapping("/profile")
-  public ResponseEntity<UserProfileResponse> updateProfile(Principal principal,
-      @RequestBody com.bookfair.system.dto.request.UserProfileUpdateRequest request) {
-    String email = principal.getName();
-    UserProfileResponse userProfile = userService.updateProfile(email, request);
+  public ResponseEntity<UserProfileResponse> updateProfile(@AuthenticationPrincipal Jwt jwt,
+      @Valid @RequestBody UserProfileUpdateRequest request) {
+    if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
+      return ResponseEntity.badRequest().build();
+    }
+    UserProfileResponse userProfile = userService.updateProfile(jwt.getClaimAsString("email"), request);
     return ResponseEntity.ok(userProfile);
   }
 
   @PostMapping("/change-password")
-  public ResponseEntity<?> changePassword(Principal principal,
+  public ResponseEntity<?> changePassword(@AuthenticationPrincipal Jwt jwt,
       @Valid @RequestBody com.bookfair.system.dto.request.ChangePasswordRequest request) {
-    String email = principal.getName();
+    if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
+      return ResponseEntity.badRequest().build();
+    }
+    String email = jwt.getClaimAsString("email");
+    if (email == null || email.isBlank()) {
+      email = jwt.getSubject();
+    }
     userService.changePassword(email, request);
     return ResponseEntity.ok("Password changed successfully");
   }

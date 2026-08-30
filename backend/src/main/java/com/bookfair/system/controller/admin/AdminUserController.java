@@ -4,13 +4,18 @@ import com.bookfair.system.dto.UserProfileResponse;
 import com.bookfair.system.dto.request.AdminCreateUserRequest;
 import com.bookfair.system.dto.request.AdminUpdateUserRequest;
 import com.bookfair.system.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/admin/users")
 @RequiredArgsConstructor
@@ -35,15 +40,19 @@ public class AdminUserController {
     /** POST /api/admin/users */
     @PostMapping
     public ResponseEntity<UserProfileResponse> createUser(
-            @RequestBody AdminCreateUserRequest request) {
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody AdminCreateUserRequest request) {
+        log.info("security.role_action action=createUser subject={} role=ADMIN", jwt != null ? jwt.getSubject() : "anonymous");
         return ResponseEntity.ok(userService.createUser(request));
     }
 
     /** PUT /api/admin/users/{id} */
     @PutMapping("/{id}")
     public ResponseEntity<UserProfileResponse> updateUser(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable Long id,
-            @RequestBody AdminUpdateUserRequest request) {
+            @Valid @RequestBody AdminUpdateUserRequest request) {
+        log.info("security.role_action action=updateUser subject={} role=ADMIN userId={}", jwt != null ? jwt.getSubject() : "anonymous", id);
         return ResponseEntity.ok(userService.updateUser(id, request));
     }
 
